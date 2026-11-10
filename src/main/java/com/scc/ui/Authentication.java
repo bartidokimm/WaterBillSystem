@@ -8,9 +8,10 @@ import java.util.Scanner;
 
 public class Authentication {
 
-    // TODO: match these to the roles in Section 2 of your System Proposal
+    // Roles from Section 2 of the System Proposal:
+    // Admin / Manager, Customer, Billing Staff, Cashier
     private static final String[] ROLES = {
-            "ADMIN", "CUSTOMER", "METER_READER", "CASHIER"
+            "ADMIN", "CUSTOMER", "BILLING_STAFF", "CASHIER"
     };
 
     private final Scanner scanner;
@@ -178,8 +179,8 @@ public class Authentication {
             case "CUSTOMER":
                 menuScreens.showCustomerMenu(user);
                 break;
-            case "METER_READER":
-                menuScreens.showMeterReaderMenu(user);
+            case "BILLING_STAFF":
+                menuScreens.showBillingStaffMenu(user);
                 break;
             case "CASHIER":
                 menuScreens.showCashierMenu(user);

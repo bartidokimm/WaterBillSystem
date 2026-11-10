@@ -1,8 +1,8 @@
 package com.scc;
 
-import com.scc.dao.DatabaseConnection;
+import com.scc.dao.DatabaseInitializer;
 import com.scc.dao.UserDao;
-import com.scc.ui.MenuScreens;
+import com.scc.ui.Authentication;
 import java.sql.SQLException;
 import java.util.Scanner;
 
@@ -11,15 +11,15 @@ public class Main {
     public static void main(String[] args) {
 
         try  {
-            DatabaseConnection.initializeDatabase();
+            DatabaseInitializer.initialize();
 
             Scanner scanner = new Scanner(System.in);
             UserDao userDao = new UserDao();
 
-            MenuScreens menu =
-                    new MenuScreens(scanner, userDao);
+            Authentication authentication =
+                    new Authentication(scanner, userDao);
 
-            menu.showMainMenu();
+            authentication.start();
 
             scanner.close();
 

@@ -13,24 +13,12 @@ public class DatabaseConnection {
     public static Connection getConnection()
             throws SQLException {
 
-        return DriverManager.getConnection(URL);
-    }
+        Connection conn = DriverManager.getConnection(URL);
 
-    public static void initializeDatabase()
-            throws SQLException {
-
-        String sql = "CREATE TABLE IF NOT EXISTS Users ("
-                + "user_id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                + "username TEXT NOT NULL UNIQUE, "
-                + "password_hash TEXT NOT NULL, "
-                + "role TEXT NOT NULL DEFAULT 'CUSTOMER', "
-                + "status TEXT NOT NULL DEFAULT 'ACTIVE'"
-                + ")";
-
-        try (Connection conn = getConnection();
-             Statement stmt = conn.createStatement()) {
-
-            stmt.execute(sql);
+        try (Statement stmt = conn.createStatement()) {
+            stmt.execute("PRAGMA foreign_keys = ON;");
         }
+
+        return conn;
     }
 }
