@@ -10,6 +10,8 @@ import java.util.List;
 
 public class UserDao {
 
+    private final ActivityLogDao activityLogDao = new ActivityLogDao();
+
     public boolean register(String username, String password, String role)
             throws SQLException {
 
@@ -100,22 +102,32 @@ public class UserDao {
         return queryUsers(sql);
     }
 
-    public boolean approveUser(int userId)
+    public boolean approveUser(int adminId, int userId)
             throws SQLException {
 
         String sql = "UPDATE Users SET status = 'APPROVED' "
                 + "WHERE user_id = ? AND status = 'PENDING'";
 
+        boolean updated;
+
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setInt(1, userId);
-
-            return ps.executeUpdate() == 1;
+            updated = ps.executeUpdate() == 1;
         }
+
+        if (updated) {
+            activityLogDao.logAction(adminId, "USER_APPROVED",
+                    "Admin " + adminId
+                            + " approved account for User ID " + userId);
+        }
+
+        return updated;
     }
 
-    public boolean updateUserRoleAndStatus(int userId, String newRole,
+    public boolean updateUserRoleAndStatus(int adminId, int userId,
+                                           String newRole,
                                            String newStatus)
             throws SQLException {
 
@@ -123,18 +135,32 @@ public class UserDao {
             return false;
         }
 
+        String role = newRole.trim().toUpperCase();
+        String status = newStatus.trim().toUpperCase();
+
         String sql = "UPDATE Users SET role = ?, status = ? "
                 + "WHERE user_id = ?";
+
+        boolean updated;
 
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
 
-            ps.setString(1, newRole.trim().toUpperCase());
-            ps.setString(2, newStatus.trim().toUpperCase());
+            ps.setString(1, role);
+            ps.setString(2, status);
             ps.setInt(3, userId);
 
-            return ps.executeUpdate() == 1;
+            updated = ps.executeUpdate() == 1;
         }
+
+        if (updated) {
+            activityLogDao.logAction(adminId, "USER_UPDATED",
+                    "Admin " + adminId + " changed User " + userId
+                            + " to role " + role
+                            + ", status " + status);
+        }
+
+        return updated;
     }
 
     private List<User> queryUsers(String sql)

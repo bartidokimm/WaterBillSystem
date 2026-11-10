@@ -1,6 +1,7 @@
 package com.scc.dao;
 
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
@@ -49,13 +50,15 @@ public class DatabaseInitializer {
                 + "FOREIGN KEY (bill_id) REFERENCES Bills(bill_id)"
                 + ")";
 
-        String activityLogs = "CREATE TABLE IF NOT EXISTS Activity_Logs ("
-                + "log_id INTEGER PRIMARY KEY AUTOINCREMENT, "
-                + "user_id INTEGER, "
-                + "action TEXT NOT NULL, "
-                + "description TEXT, "
-                + "log_timestamp TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, "
-                + "FOREIGN KEY (user_id) REFERENCES Users(user_id)"
+        String activityLogs = "CREATE TABLE IF NOT EXISTS activity_logs ("
+                + "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                + "user_id INTEGER NOT NULL, "
+                + "action_type TEXT NOT NULL, "
+                + "description TEXT NOT NULL, "
+                + "timestamp TEXT NOT NULL "
+                + "DEFAULT (datetime('now', 'localtime')), "
+                + "FOREIGN KEY (user_id) REFERENCES Users(user_id) "
+                + "ON DELETE CASCADE"
                 + ")";
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -65,7 +68,37 @@ public class DatabaseInitializer {
             stmt.execute(customers);
             stmt.execute(bills);
             stmt.execute(payments);
+
+            dropOldActivityLogsTable(conn);
             stmt.execute(activityLogs);
+        }
+    }
+
+    // Earlier deliverables created Activity_Logs with different columns.
+    // SQLite table names are case-insensitive, so CREATE IF NOT EXISTS would
+    // silently keep that old table. It was never written to, so replace it.
+    private static void dropOldActivityLogsTable(Connection conn)
+            throws SQLException {
+
+        boolean tableExists = false;
+        boolean hasActionType = false;
+
+        try (Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(
+                     "PRAGMA table_info(activity_logs)")) {
+
+            while (rs.next()) {
+                tableExists = true;
+                if ("action_type".equalsIgnoreCase(rs.getString("name"))) {
+                    hasActionType = true;
+                }
+            }
+        }
+
+        if (tableExists && !hasActionType) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("DROP TABLE activity_logs");
+            }
         }
     }
 }

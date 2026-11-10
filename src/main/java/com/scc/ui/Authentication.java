@@ -1,5 +1,6 @@
 package com.scc.ui;
 
+import com.scc.dao.ActivityLogDao;
 import com.scc.dao.UserDao;
 import com.scc.model.User;
 
@@ -16,21 +17,22 @@ public class Authentication {
 
     private final Scanner scanner;
     private final UserDao userDao;
+    private final ActivityLogDao activityLogDao;
     private final MenuScreens menuScreens;
 
     public Authentication(Scanner scanner, UserDao userDao) {
         this.scanner = scanner;
         this.userDao = userDao;
-        this.menuScreens = new MenuScreens(scanner, userDao);
+        this.activityLogDao = new ActivityLogDao();
+        this.menuScreens =
+                new MenuScreens(scanner, userDao, activityLogDao);
     }
 
     public void start() {
         boolean running = true;
 
         while (running) {
-            System.out.println("\n==================================");
-            System.out.println("       WATER BILLING SYSTEM");
-            System.out.println("==================================");
+            ConsoleUi.printHeader("WATER BILLING SYSTEM");
             System.out.println("1. Register Account");
             System.out.println("2. Log In");
             System.out.println("3. Exit");
@@ -121,7 +123,13 @@ public class Authentication {
                         "Welcome, " + user.getUsername() + "!"
                 );
 
+                activityLogDao.logAction(user.getUserId(), "USER_LOGIN",
+                        "User " + user.getUsername() + " (ID: "
+                                + user.getUserId() + ") logged in.");
+
                 routeByRole(user);
+
+                logout(user);
 
             } else {
                 System.out.println(
@@ -135,6 +143,13 @@ public class Authentication {
                     "Login failed: " + e.getMessage()
             );
         }
+    }
+
+    // Runs after a role menu returns (the user chose Log Out).
+    private void logout(User user) {
+        activityLogDao.logAction(user.getUserId(), "USER_LOGOUT",
+                "User " + user.getUsername() + " (ID: "
+                        + user.getUserId() + ") logged out.");
     }
 
     // Automatically display the password after typing

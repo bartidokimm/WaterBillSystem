@@ -1,16 +1,16 @@
 package com.scc.ui;
 
+import com.scc.dao.ActivityLogDao;
 import com.scc.dao.UserDao;
+import com.scc.model.ActivityLog;
 import com.scc.model.User;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
 
 public class AdminMenu {
-
-    private static final String ROW_FORMAT =
-            "| %-5s | %-15s | %-15s | %-10s |%n";
 
     private static final String[] VALID_ROLES = {
             "ADMIN", "CUSTOMER", "BILLING_STAFF", "CASHIER"
@@ -24,25 +24,27 @@ public class AdminMenu {
 
     private final Scanner scanner;
     private final UserDao userDao;
+    private final ActivityLogDao activityLogDao;
 
-    public AdminMenu(Scanner scanner, UserDao userDao) {
+    public AdminMenu(Scanner scanner, UserDao userDao,
+                     ActivityLogDao activityLogDao) {
         this.scanner = scanner;
         this.userDao = userDao;
+        this.activityLogDao = activityLogDao;
     }
 
     public void show(User admin) {
         boolean loggedIn = true;
 
         while (loggedIn) {
-            System.out.println("\n==================================");
-            System.out.println("            ADMIN MENU");
-            System.out.println("==================================");
+            ConsoleUi.printHeader("ADMIN MENU");
             System.out.println("Logged in as: " + admin.getUsername());
             System.out.println("1. View All System Users");
             System.out.println("2. View Pending Registrations");
             System.out.println("3. Approve User Account");
             System.out.println("4. Update User Role and Status");
-            System.out.println("5. Log Out");
+            System.out.println("5. View System Audit Logs");
+            System.out.println("6. Log Out");
             System.out.println("----------------------------------");
             System.out.print("Enter choice: ");
 
@@ -58,7 +60,7 @@ public class AdminMenu {
                     break;
 
                 case "3":
-                    approveUserAccount();
+                    approveUserAccount(admin);
                     break;
 
                 case "4":
@@ -66,6 +68,10 @@ public class AdminMenu {
                     break;
 
                 case "5":
+                    showAuditLogMenu(admin);
+                    break;
+
+                case "6":
                     loggedIn = false;
                     System.out.println(
                             "You have logged out successfully."
@@ -120,7 +126,7 @@ public class AdminMenu {
         }
     }
 
-    private void approveUserAccount() {
+    private void approveUserAccount(User admin) {
         System.out.println("\n--- APPROVE USER ACCOUNT ---");
 
         try {
@@ -153,7 +159,7 @@ public class AdminMenu {
                     continue;
                 }
 
-                if (userDao.approveUser(userId)) {
+                if (userDao.approveUser(admin.getUserId(), userId)) {
                     System.out.println(
                             "User '" + target.getUsername()
                                     + "' (ID " + userId
@@ -235,7 +241,8 @@ public class AdminMenu {
             }
 
             if (userDao.updateUserRoleAndStatus(
-                    target.getUserId(), newRole, newStatus)) {
+                    currentAdmin.getUserId(), target.getUserId(),
+                    newRole, newStatus)) {
                 System.out.println(
                         "User '" + target.getUsername()
                                 + "' (ID " + target.getUserId()
@@ -256,11 +263,156 @@ public class AdminMenu {
         }
     }
 
+    // ---------- Audit log interface ----------
+
+    private void showAuditLogMenu(User admin) {
+        boolean back = false;
+
+        while (!back) {
+            System.out.println("\n--- SYSTEM AUDIT LOGS ---");
+            System.out.println("1. View All System Logs");
+            System.out.println("2. Filter Logs by User ID");
+            System.out.println("3. Clear All Logs");
+            System.out.println("0. Back");
+            System.out.print("Enter choice: ");
+
+            String choice = scanner.nextLine().trim();
+
+            switch (choice) {
+                case "1":
+                    viewAllLogs();
+                    break;
+
+                case "2":
+                    viewLogsByUser();
+                    break;
+
+                case "3":
+                    clearLogs(admin);
+                    break;
+
+                case "0":
+                    back = true;
+                    break;
+
+                default:
+                    System.out.println(
+                            "Invalid choice. Please try again."
+                    );
+            }
+        }
+    }
+
+    private void viewAllLogs() {
+        System.out.println("\n--- ALL SYSTEM LOGS ---");
+
+        try {
+            List<ActivityLog> logs = activityLogDao.getAllLogs();
+
+            if (logs.isEmpty()) {
+                System.out.println("No activity logs recorded.");
+                return;
+            }
+
+            printLogTable(logs);
+
+        } catch (SQLException e) {
+            System.out.println(
+                    "Unable to load logs: " + e.getMessage()
+            );
+        }
+    }
+
+    private void viewLogsByUser() {
+        System.out.println("\n--- FILTER LOGS BY USER ID ---");
+
+        int userId = readIntInput(
+                "Enter User ID to filter (0 to cancel): "
+        );
+
+        if (userId == CANCELLED) {
+            System.out.println("Filter cancelled.");
+            return;
+        }
+
+        try {
+            List<ActivityLog> logs =
+                    activityLogDao.getLogsByUserId(userId);
+
+            if (logs.isEmpty()) {
+                System.out.println(
+                        "No logs found for User ID " + userId + "."
+                );
+                return;
+            }
+
+            printLogTable(logs);
+
+        } catch (SQLException e) {
+            System.out.println(
+                    "Unable to load logs: " + e.getMessage()
+            );
+        }
+    }
+
+    // Requires typing YES, and the clearing itself is logged afterwards.
+    private void clearLogs(User admin) {
+        System.out.println("\n--- CLEAR ALL LOGS ---");
+        System.out.println(
+                "WARNING: This permanently deletes every log entry."
+        );
+        System.out.print("Type YES to confirm (anything else cancels): ");
+
+        String confirm = scanner.nextLine().trim();
+
+        if (!confirm.equals("YES")) {
+            System.out.println("Clear cancelled. No logs were deleted.");
+            return;
+        }
+
+        try {
+            int removed = activityLogDao.deleteAllLogs();
+
+            System.out.println(removed + " log entries deleted.");
+
+            activityLogDao.logAction(admin.getUserId(), "LOGS_CLEARED",
+                    "Admin " + admin.getUserId() + " cleared "
+                            + removed + " log entries");
+
+        } catch (SQLException e) {
+            System.out.println(
+                    "Unable to clear logs: " + e.getMessage()
+            );
+        }
+    }
+
+    private void printLogTable(List<ActivityLog> logs) {
+        String[] headers = {
+                "ID", "User ID", "Action Type", "Description", "Timestamp"
+        };
+        int[] widths = {5, 8, 18, 35, 20};
+
+        List<String[]> rows = new ArrayList<>();
+        for (ActivityLog log : logs) {
+            rows.add(new String[]{
+                    String.valueOf(log.getId()),
+                    String.valueOf(log.getUserId()),
+                    log.getActionType(),
+                    log.getDescription(),
+                    log.getTimestamp()
+            });
+        }
+
+        TablePrinter.print(headers, widths, rows);
+        System.out.println(logs.size() + " log entries shown.");
+    }
+
     // ---------- Input validation wrappers ----------
 
     // Keeps asking until the input is a whole number
     private int readIntInput(String prompt) {
         while (true) {
+            System.out.println();
             System.out.print(prompt);
             String input = scanner.nextLine().trim();
 
@@ -276,46 +428,16 @@ public class AdminMenu {
 
     // Returns a valid role, or null if the admin entered 0 to cancel
     private String readValidRole() {
-        while (true) {
-            System.out.println("\nValid roles: "
-                    + String.join(", ", VALID_ROLES));
-            System.out.print("Enter new role (0 to cancel): ");
-            String input = scanner.nextLine().trim().toUpperCase();
-
-            if (input.equals("0")) {
-                return null;
-            }
-
-            for (String role : VALID_ROLES) {
-                if (role.equals(input)) {
-                    return role;
-                }
-            }
-
-            System.out.println("Invalid role. Please try again.");
-        }
+        return ConsoleUi.chooseOption(scanner, "Valid roles:", VALID_ROLES,
+                "Enter new role (0 to cancel): ",
+                "Invalid role. Please try again.");
     }
 
     // Returns a valid status, or null if the admin entered 0 to cancel
     private String readValidStatus() {
-        while (true) {
-            System.out.println("\nValid statuses: "
-                    + String.join(", ", VALID_STATUSES));
-            System.out.print("Enter new status (0 to cancel): ");
-            String input = scanner.nextLine().trim().toUpperCase();
-
-            if (input.equals("0")) {
-                return null;
-            }
-
-            for (String status : VALID_STATUSES) {
-                if (status.equals(input)) {
-                    return status;
-                }
-            }
-
-            System.out.println("Invalid status. Please try again.");
-        }
+        return ConsoleUi.chooseOption(scanner, "Valid statuses:",
+                VALID_STATUSES, "Enter new status (0 to cancel): ",
+                "Invalid status. Please try again.");
     }
 
     // ---------- Helpers ----------
@@ -331,24 +453,19 @@ public class AdminMenu {
 
     // Reusable table renderer for any list of users
     private void printUserTable(List<User> users) {
-        String border = "+" + "-".repeat(7)
-                + "+" + "-".repeat(17)
-                + "+" + "-".repeat(17)
-                + "+" + "-".repeat(12) + "+";
+        String[] headers = {"ID", "Username", "Role", "Status"};
+        int[] widths = {5, 20, 15, 10};
 
-        System.out.println(border);
-        System.out.printf(ROW_FORMAT,
-                "ID", "Username", "Role", "Status");
-        System.out.println(border);
-
+        List<String[]> rows = new ArrayList<>();
         for (User user : users) {
-            System.out.printf(ROW_FORMAT,
-                    user.getUserId(),
+            rows.add(new String[]{
+                    String.valueOf(user.getUserId()),
                     user.getUsername(),
                     user.getRole(),
-                    user.getStatus());
+                    user.getStatus()
+            });
         }
 
-        System.out.println(border);
+        TablePrinter.print(headers, widths, rows);
     }
 }

@@ -1,21 +1,27 @@
 package com.scc.ui;
 
+import com.scc.dao.ActivityLogDao;
+import com.scc.dao.BillDao;
+import com.scc.dao.CustomerDao;
 import com.scc.dao.UserDao;
 import com.scc.model.User;
 
-import java.sql.SQLException;
 import java.util.Scanner;
 
 public class MenuScreens {
 
     private final Scanner scanner;
-    private final UserDao userDao;
+    private final ActivityLogDao activityLogDao;
     private final AdminMenu adminMenu;
+    private final BillingStaffMenu billingStaffMenu;
 
-    public MenuScreens(Scanner scanner, UserDao userDao) {
+    public MenuScreens(Scanner scanner, UserDao userDao,
+                       ActivityLogDao activityLogDao) {
         this.scanner = scanner;
-        this.userDao = userDao;
-        this.adminMenu = new AdminMenu(scanner, userDao);
+        this.activityLogDao = activityLogDao;
+        this.adminMenu = new AdminMenu(scanner, userDao, activityLogDao);
+        this.billingStaffMenu = new BillingStaffMenu(
+                scanner, new CustomerDao(), new BillDao());
     }
 
     public void showAdminMenu(User user) {
@@ -27,7 +33,7 @@ public class MenuScreens {
     }
 
     public void showBillingStaffMenu(User user) {
-        showUserMenu(user);
+        billingStaffMenu.show(user);
     }
 
     public void showCashierMenu(User user) {
@@ -38,9 +44,7 @@ public class MenuScreens {
         boolean loggedIn = true;
 
         while (loggedIn) {
-            System.out.println("\n==================================");
-            System.out.println("          USER MENU");
-            System.out.println("==================================");
+            ConsoleUi.printHeader("USER MENU");
             System.out.println(
                     "Logged in as: " + user.getUsername()
             );
@@ -60,6 +64,11 @@ public class MenuScreens {
                     break;
 
                 case "2":
+                    // Exit ends the program, so log the logout here.
+                    activityLogDao.logAction(user.getUserId(),
+                            "USER_LOGOUT",
+                            "User " + user.getUsername() + " (ID: "
+                                    + user.getUserId() + ") logged out.");
                     System.out.println(
                             "Thank you for using the system!"
                     );
